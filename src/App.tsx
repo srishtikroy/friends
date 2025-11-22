@@ -9,6 +9,8 @@ import Register from "./pages/Register";
 import Interests from "./pages/Interests";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import UserProfile from "./pages/UserProfile";
+import Friends from "./pages/Friends";
 import Recommendations from "./pages/Recommendations";
 import Messages from "./pages/Messages";
 import NotFound from "./pages/NotFound";
@@ -25,11 +27,13 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/interests" element={<Interests />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/recommendations" element={<Recommendations />} />
-          <Route path="/messages" element={<Messages />} />
+        <Route path="/interests" element={<Interests />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/user/:userId" element={<UserProfile />} />
+        <Route path="/friends" element={<Friends />} />
+        <Route path="/recommendations" element={<Recommendations />} />
+        <Route path="/messages" element={<Messages />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

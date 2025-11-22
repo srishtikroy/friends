@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { CreatePostDialog } from '@/components/CreatePostDialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, Bell, User as UserIcon, Send, UserPlus, LogOut } from 'lucide-react';
+import { Bell, User as UserIcon, Send, UserPlus, LogOut, Users } from 'lucide-react';
 
 interface Profile {
   id: string;
@@ -20,20 +19,39 @@ interface Post {
   content: string;
   image_url?: string;
   created_at: string;
+  user_id: string;
   profiles: Profile;
 }
 
 const Dashboard = () => {
   const [posts, setPosts] = useState<Post[]>([]);
-  const [newPost, setNewPost] = useState('');
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     checkUser();
     fetchPosts();
+
+    // Set up realtime subscription for posts
+    const channel = supabase
+      .channel('posts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'posts',
+        },
+        () => {
+          fetchPosts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const checkUser = async () => {
@@ -73,36 +91,6 @@ const Dashboard = () => {
     } else {
       setPosts(data || []);
     }
-  };
-
-  const createPost = async () => {
-    if (!newPost.trim() || !currentUser) return;
-
-    setLoading(true);
-
-    const { error } = await supabase
-      .from('posts')
-      .insert({
-        user_id: currentUser.id,
-        content: newPost.trim(),
-      });
-
-    if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create post',
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'Success',
-        description: 'Post created!',
-      });
-      setNewPost('');
-      fetchPosts();
-    }
-
-    setLoading(false);
   };
 
   const handleSignOut = async () => {
@@ -152,6 +140,12 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="space-y-2">
+                <Link to="/friends">
+                  <Button variant="outline" className="w-full justify-start" size="sm">
+                    <Users className="w-4 h-4 mr-2" />
+                    Friends
+                  </Button>
+                </Link>
                 <Link to="/recommendations">
                   <Button variant="outline" className="w-full justify-start" size="sm">
                     <UserPlus className="w-4 h-4 mr-2" />
@@ -172,18 +166,7 @@ const Dashboard = () => {
           <main className="lg:col-span-2 space-y-6">
             {/* Create Post */}
             <Card className="p-6 shadow-soft">
-              <h2 className="text-lg font-semibold mb-4">What's on your mind?</h2>
-              <Textarea
-                placeholder="Share something..."
-                value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
-                className="mb-4 resize-none"
-                rows={3}
-              />
-              <Button onClick={createPost} disabled={loading || !newPost.trim()} className="w-full">
-                <Send className="w-4 h-4 mr-2" />
-                {loading ? 'Posting...' : 'Post'}
-              </Button>
+              <CreatePostDialog onPostCreated={fetchPosts} />
             </Card>
 
             {/* Posts Feed */}
@@ -191,31 +174,42 @@ const Dashboard = () => {
               {posts.map((post) => (
                 <Card key={post.id} className="p-6 shadow-soft hover:shadow-medium transition-shadow">
                   <div className="flex items-start gap-4">
-                    <Avatar>
-                      <AvatarImage src={post.profiles.avatar_url} />
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {post.profiles.username.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <Link to={`/user/${post.user_id}`}>
+                      <Avatar className="cursor-pointer">
+                        <AvatarImage src={post.profiles.avatar_url} />
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {post.profiles.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold">{post.profiles.username}</h3>
+                        <Link to={`/user/${post.user_id}`}>
+                          <h3 className="font-semibold hover:underline cursor-pointer">{post.profiles.username}</h3>
+                        </Link>
                         <span className="text-xs text-muted-foreground">
                           {new Date(post.created_at).toLocaleDateString()}
                         </span>
                       </div>
-                      <p className="text-foreground whitespace-pre-wrap">{post.content}</p>
+                      {post.content && <p className="text-foreground whitespace-pre-wrap mb-3">{post.content}</p>}
                       {post.image_url && (
                         <img
                           src={post.image_url}
                           alt="Post"
-                          className="mt-4 rounded-lg max-w-full"
+                          className="rounded-lg max-h-[500px] w-full object-cover"
                         />
                       )}
                     </div>
                   </div>
                 </Card>
               ))}
+              {posts.length === 0 && (
+                <Card className="p-8 text-center">
+                  <p className="text-muted-foreground">
+                    No posts yet. Create your first post or follow some friends to see their posts!
+                  </p>
+                </Card>
+              )}
             </div>
           </main>
         </div>

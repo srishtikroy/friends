@@ -43,6 +43,27 @@ const Messages = () => {
   useEffect(() => {
     if (selectedUser && currentUserId) {
       fetchMessages(selectedUser.id);
+      
+      // Set up realtime subscription for messages
+      const channel = supabase
+        .channel('messages')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `or(and(sender_id.eq.${currentUserId},recipient_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},recipient_id.eq.${currentUserId}))`,
+          },
+          (payload) => {
+            setMessages((current) => [...current, payload.new as Message]);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [selectedUser, currentUserId]);
 
